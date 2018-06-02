@@ -30,13 +30,12 @@ func isEndOfSentence(word string) bool {
 }
 
 // Build takes in raw text and creates a word map suitable for generating sentences
-func Build(input string) map[string]map[string]*Node {
+func Build(input string, wordMap map[string]map[string]*Node) map[string]map[string]*Node {
 	// first replace all newlines with spaces
 	text := strings.Replace(input, "\n", " ", -1)
 	words := strings.Split(text, " ")
 
 	// create our map
-	wordMap := make(map[string]map[string]*Node)
 	addOrUpdateMap := func(where, word string) {
 		// create child map if necessary
 		if _, ok := wordMap[where]; !ok {

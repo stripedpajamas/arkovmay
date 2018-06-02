@@ -1,11 +1,16 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/stripedpajamas/arkovmay/builder"
 
 	"github.com/go-chi/chi"
 	"github.com/oklog/ulid"
@@ -78,6 +83,7 @@ func CreateMark(w http.ResponseWriter, r *http.Request) {
 		database.DB.Create(&mark)
 
 		createResponse, err := json.Marshal(MarkResponse{
+			ID:       mark.ID,
 			Name:     mark.Name,
 			PublicID: mark.PublicID,
 		})
@@ -105,7 +111,7 @@ func GetAllMarks(w http.ResponseWriter, r *http.Request) {
 
 	// get just names and public ids for this user
 	var marks []MarkResponse
-	database.DB.Table("marks").Select("id, name, public_id").Where("user_id = ?", user.ID).Scan(&marks)
+	database.DB.Table("marks").Select("id, name, public_id").Where("user_id = ? AND deleted_at IS NULL", user.ID).Scan(&marks)
 
 	response, err := json.Marshal(&marks)
 	if err != nil {
@@ -136,7 +142,61 @@ func GetMark(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateMark(w http.ResponseWriter, r *http.Request) {
+	// should use builder to update data of a mark with posted text file
+	ctx := r.Context()
+	mark, ok := ctx.Value("mark").(models.Mark)
+	if !ok {
+		http.Error(w, http.StatusText(422), 422)
+		return
+	}
 
+	if err := r.ParseMultipartForm(32 << 20); nil != err {
+		http.Error(w, http.StatusText(500), 500)
+		return
+	}
+	var filedata [][]byte
+	for _, fileheaders := range r.MultipartForm.File {
+		for _, header := range fileheaders {
+			file, err := header.Open()
+			if err != nil {
+				http.Error(w, http.StatusText(500), 500)
+				return
+			}
+			defer file.Close()
+			var data []byte
+			if data, err = ioutil.ReadAll(file); err != nil {
+				http.Error(w, http.StatusText(500), 500)
+				return
+			}
+			filedata = append(filedata, data)
+		}
+	}
+
+	// we have the bytes in filedata now. we need to get the current map from the db
+	var wordMap map[string]map[string]*builder.Node
+	oldData := mark.Data
+	// handle no old data
+	if oldData == "" {
+		oldData = "{}"
+	}
+	if err := json.Unmarshal([]byte(oldData), &wordMap); err != nil {
+		fmt.Println(err)
+		http.Error(w, http.StatusText(500), 500)
+		return
+	}
+
+	input := string(bytes.Join(filedata, []byte(" ")))
+	wordMap = builder.Build(string(input), wordMap)
+
+	encoded, err := json.Marshal(wordMap)
+	if err != nil {
+		http.Error(w, http.StatusText(500), 500)
+		return
+	}
+
+	// write wordmap to database
+	database.DB.Model(&mark).Update("data", encoded)
+	w.Write(encoded)
 }
 
 func DeleteMark(w http.ResponseWriter, r *http.Request) {
