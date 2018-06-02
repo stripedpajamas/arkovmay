@@ -15,7 +15,7 @@ import (
 const sessionCookie = "ARKOVMAY_SESSION"
 
 // minutes
-var loginExpiryMinutes = time.Minute * 1
+var loginExpiryMinutes = time.Minute * 10
 
 type TokenRequest struct {
 	Email string `json:"email"`
@@ -62,7 +62,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	// TODO send email
 
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusCreated)
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
