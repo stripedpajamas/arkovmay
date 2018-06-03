@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -28,6 +27,11 @@ type MarkResponse struct {
 	PublicID string `json:"publicId"`
 }
 
+type GenerateResponse struct {
+	Name   string `json:"name"`
+	Result string `json:"result"`
+}
+
 func MarkCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		markID := chi.URLParam(r, "markID")
@@ -43,7 +47,35 @@ func MarkCtx(next http.Handler) http.Handler {
 }
 
 func Generate(w http.ResponseWriter, r *http.Request) {
+	markPublicID := chi.URLParam(r, "id")
+	var mark models.Mark
+	database.DB.Where("public_id = ?", markPublicID).First(&mark)
 
+	if mark.ID == 0 {
+		http.Error(w, http.StatusText(404), 404)
+		return
+	}
+
+	var wordMap map[string]map[string]*builder.Node
+	data := mark.Data
+	// handle no old data
+	if data == "" {
+		http.Error(w, http.StatusText(404), 404)
+		return
+	}
+	if err := json.Unmarshal([]byte(data), &wordMap); err != nil {
+		http.Error(w, http.StatusText(500), 500)
+		return
+	}
+	response, err := json.Marshal(GenerateResponse{
+		Name:   mark.Name,
+		Result: builder.GenerateSentence(wordMap),
+	})
+	if err != nil {
+		http.Error(w, http.StatusText(500), 500)
+		return
+	}
+	w.Write(response)
 }
 
 func CreateMark(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +212,6 @@ func UpdateMark(w http.ResponseWriter, r *http.Request) {
 		oldData = "{}"
 	}
 	if err := json.Unmarshal([]byte(oldData), &wordMap); err != nil {
-		fmt.Println(err)
 		http.Error(w, http.StatusText(500), 500)
 		return
 	}

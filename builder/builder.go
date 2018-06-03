@@ -116,6 +116,13 @@ func getNextWord(currentWord string, wordMap map[string]map[string]*Node) string
 
 // GenerateSentence uses a word map to generate a sentence
 func GenerateSentence(wordMap map[string]map[string]*Node) string {
+	// make sure the map has something to work with
+	if _, ok := wordMap[sentenceStart]; !ok {
+		return ""
+	}
+	if _, ok := wordMap[sentenceEnd]; !ok {
+		return ""
+	}
 	sentence := make([]string, 1)
 
 	currentWord := sentenceStart
